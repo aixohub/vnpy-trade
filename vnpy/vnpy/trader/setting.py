@@ -34,7 +34,11 @@ SETTINGS: dict = {
     "database.host": "",
     "database.port": 0,
     "database.user": "",
-    "database.password": ""
+    "database.password": "",
+
+    "mysql.order_persistence": True,
+    "mysql.order_table": "vt_order_data",
+    "mysql.trade_table": "vt_trade_data"
 }
 
 

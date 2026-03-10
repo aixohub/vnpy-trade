@@ -253,6 +253,16 @@ class ContractData(BaseData):
     net_position: bool = False              # whether gateway uses net position volume
     history_data: bool = False              # whether gateway provides bar history data
 
+    open_date: str | None = None
+    expire_date: str | None = None
+    delivery_year: float = 1
+    delivery_month: float = 1
+    long_margin_ratio: float | None = None
+    short_margin_ratio: float | None = None
+    long_margin_ratio_by_money: float | None = None
+    short_margin_ratio_by_money: float | None = None
+    volume_multiple: int | None = None
+
     option_strike: float | None = None
     option_underlying: str | None = None     # vt_symbol of underlying contract
     option_type: OptionType | None = None

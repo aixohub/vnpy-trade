@@ -124,8 +124,8 @@ OPTIONTYPE_CTP2VT: dict[str, OptionType] = {
 }
 
 # 其他常量
-MAX_FLOAT = sys.float_info.max                  # 浮点数极限值
-CHINA_TZ = ZoneInfo("Asia/Shanghai")       # 中国时区
+MAX_FLOAT = sys.float_info.max  # 浮点数极限值
+CHINA_TZ = ZoneInfo("Asia/Shanghai")  # 中国时区
 
 # 合约数据全局缓存字典
 symbol_contract_map: dict[str, ContractData] = {}
@@ -138,7 +138,7 @@ class CtpGateway(BaseGateway):
 
     default_name: str = "CTP"
 
-    default_setting: dict[str, str | list[str]] = {
+    default_setting: dict[str, str] = {
         "用户名": "",
         "密码": "",
         "经纪商代码": "",
@@ -146,7 +146,8 @@ class CtpGateway(BaseGateway):
         "行情服务器": "",
         "产品名称": "",
         "授权编码": "",
-        "柜台环境": ["实盘", "测试"]
+        "柜台环境": ["实盘", "测试"],
+        "备注": ""
     }
 
     exchanges: list[str] = list(EXCHANGE_CTP2VT.values())
@@ -172,21 +173,21 @@ class CtpGateway(BaseGateway):
         production_mode: bool = setting["柜台环境"] == "实盘"
 
         if (
-            (not td_address.startswith("tcp://"))
-            and (not td_address.startswith("ssl://"))
-            and (not td_address.startswith("socks"))
+                (not td_address.startswith("tcp://"))
+                and (not td_address.startswith("ssl://"))
+                and (not td_address.startswith("socks"))
         ):
             td_address = "tcp://" + td_address
 
         if (
-            (not md_address.startswith("tcp://"))
-            and (not md_address.startswith("ssl://"))
-            and (not md_address.startswith("socks"))
+                (not md_address.startswith("tcp://"))
+                and (not md_address.startswith("ssl://"))
+                and (not md_address.startswith("socks"))
         ):
             md_address = "tcp://" + md_address
 
-        self.td_api.connect(td_address, userid, password, brokerid, auth_code, appid, production_mode)
-        self.md_api.connect(md_address, userid, password, brokerid, production_mode)
+        self.td_api.connect(td_address, userid, password, brokerid, auth_code, appid)
+        self.md_api.connect(md_address, userid, password, brokerid)
 
         self.init_query()
 
@@ -267,7 +268,7 @@ class CtpMdApi(MdApi):
 
     def onFrontConnected(self) -> None:
         """服务器连接成功回报"""
-        self.gateway.write_log(f"行情服务器 {self.address} 连接成功")
+        self.gateway.write_log(f"行情服务器 {self.address} 连接成功, 开始登录...")
         self.login()
 
     def onFrontDisconnected(self, reason: int) -> None:
@@ -364,24 +365,17 @@ class CtpMdApi(MdApi):
 
         self.gateway.on_tick(tick)
 
-    def connect(
-        self,
-        address: str,
-        userid: str,
-        password: str,
-        brokerid: str,
-        production_mode: bool
-    ) -> None:
+    def connect(self, address: str, userid: str, password: str, brokerid: str) -> None:
         """连接服务器"""
+        self.address = address
         self.userid = userid
         self.password = password
         self.brokerid = brokerid
-        self.address = address
 
         # 禁止重复发起连接，会导致异常崩溃
         if not self.connect_status:
             path: Path = get_folder_path(self.gateway_name.lower())
-            self.createFtdcMdApi((str(path) + "\\Md").encode("GBK"), production_mode)
+            self.createFtdcMdApi((str(path) + "\\Md").encode("GBK"))
 
             self.registerFront(address)
             self.init()
@@ -398,6 +392,17 @@ class CtpMdApi(MdApi):
 
         self.reqid += 1
         self.reqUserLogin(ctp_req, self.reqid)
+
+    def logout(self) -> None:
+        """用户退出登录"""
+        if self.login_status:
+            ctp_req: dict = {
+                "UserID": self.userid,
+                "BrokerID": self.brokerid
+            }
+            self.reqid += 1
+            self.reqUserLogout(ctp_req, self.reqid)
+            self.login_status = False
 
     def subscribe(self, req: SubscribeRequest) -> None:
         """订阅行情"""
@@ -416,7 +421,7 @@ class CtpMdApi(MdApi):
 
 
 class CtpTdApi(TdApi):
-    """"""
+    """交易"""
 
     def __init__(self, gateway: CtpGateway) -> None:
         """构造函数"""
@@ -451,7 +456,7 @@ class CtpTdApi(TdApi):
 
     def onFrontConnected(self) -> None:
         """服务器连接成功回报"""
-        self.gateway.write_log(f"交易服务器 {self.address} 连接成功")
+        self.gateway.write_log(f"交易服务器 {self.address} 连接成功，开始授权验证...")
 
         if self.auth_code:
             self.authenticate()
@@ -482,7 +487,7 @@ class CtpTdApi(TdApi):
             self.frontid = data["FrontID"]
             self.sessionid = data["SessionID"]
             self.login_status = True
-            self.gateway.write_log("交易服务器登录成功")
+            self.gateway.write_log(f"交易服务器  {self.address} 登录成功")
 
             # 自动确认结算单
             ctp_req: dict = {
@@ -494,7 +499,7 @@ class CtpTdApi(TdApi):
         else:
             self.login_failed = True
 
-            self.gateway.write_error("交易服务器登录失败", error)
+            self.gateway.write_error(f"交易服务器 {self.address} 登录失败", error)
 
     def onRspOrderInsert(self, data: dict, error: dict, reqid: int, last: bool) -> None:
         """委托下单失败回报"""
@@ -622,6 +627,13 @@ class CtpTdApi(TdApi):
                 pricetick=data["PriceTick"],
                 min_volume=data["MinLimitOrderVolume"],
                 max_volume=data["MaxLimitOrderVolume"],
+                open_date=data["OpenDate"],
+                expire_date=data["ExpireDate"],
+                delivery_year=data["DeliveryYear"],
+                delivery_month=data["DeliveryMonth"],
+                long_margin_ratio=data["LongMarginRatio"],
+                short_margin_ratio=data["ShortMarginRatio"],
+                volume_multiple=data["VolumeMultiple"],
                 gateway_name=self.gateway_name
             )
 
@@ -655,6 +667,42 @@ class CtpTdApi(TdApi):
             for data in self.trade_data:
                 self.onRtnTrade(data)
             self.trade_data.clear()
+
+    def onRspQryInstrumentMarginRate(self, data: dict, error: dict, reqid: int, last: bool) -> None:
+        """查询合约保证金率回报"""
+
+        if error and error.get("ErrorID"):
+            self.gateway.write_log(
+                f"查询合约保证金率失败，错误代码：{error['ErrorID']}，"
+                f"错误信息：{error['ErrorMsg']}"
+            )
+            return
+
+        if not data:
+            return
+
+        # 保证金率数据映射
+        # data["reserve1"]          -> 保留字段
+        # data["BrokerID"]          -> 经纪公司代码
+        # data["InvestorID"]        -> 投资者代码
+        # data["ExchangeID"]        -> 交易所代码
+        # data["InvestUnitID"]      -> 投资单元代码
+        # data["InstrumentID"]      -> 合约代码
+        # data["IsRelative"]        -> 是否相对交易所收取
+        # data["InvestorRange"]     -> 投资者范围
+        # data["HedgeFlag"]         -> 投机套保标志
+        # data["LongMarginRatioByMoney"]   -> 多头保证金率（按金额）
+        # data["LongMarginRatioByVolume"]  -> 多头保证金费（按手数）
+        # data["ShortMarginRatioByMoney"]  -> 空头保证金率（按金额）
+        # data["ShortMarginRatioByVolume"] -> 空头保证金费（按手数）
+
+        symbol: str = data["InstrumentID"]
+        contract: ContractData = symbol_contract_map[symbol]
+
+        contract.long_margin_ratio_by_money = data["LongMarginRatioByMoney"]
+        contract.short_margin_ratio_by_money = data["ShortMarginRatioByMoney"]
+        self.gateway.on_contract(contract)
+        self.gateway.write_log(f"合约{data["InstrumentID"]} 保证金率 {data["LongMarginRatioByMoney"]} 查询成功")
 
     def onRtnOrder(self, data: dict) -> None:
         """委托更新推送"""
@@ -697,7 +745,6 @@ class CtpTdApi(TdApi):
             volume=data["VolumeTotalOriginal"],
             traded=data["VolumeTraded"],
             status=status,
-            status_msg=status_msg,
             datetime=dt,
             gateway_name=self.gateway_name
         )
@@ -735,26 +782,25 @@ class CtpTdApi(TdApi):
         self.gateway.on_trade(trade)
 
     def connect(
-        self,
-        address: str,
-        userid: str,
-        password: str,
-        brokerid: str,
-        auth_code: str,
-        appid: str,
-        production_mode: bool
+            self,
+            address: str,
+            userid: str,
+            password: str,
+            brokerid: str,
+            auth_code: str,
+            appid: str
     ) -> None:
         """连接服务器"""
+        self.address = address
         self.userid = userid
         self.password = password
         self.brokerid = brokerid
-        self.address = address
         self.auth_code = auth_code
         self.appid = appid
 
         if not self.connect_status:
             path: Path = get_folder_path(self.gateway_name.lower())
-            self.createFtdcTraderApi((str(path) + "\\Td").encode("GBK"), production_mode)
+            self.createFtdcTraderApi((str(path) + "\\Td").encode("GBK"))
 
             self.subscribePrivateTopic(0)
             self.subscribePublicTopic(0)
@@ -794,6 +840,17 @@ class CtpTdApi(TdApi):
 
         self.reqid += 1
         self.reqUserLogin(ctp_req, self.reqid)
+
+    def logout(self) -> None:
+        """用户退出登录"""
+        if self.login_status:
+            ctp_req: dict = {
+                "UserID": self.userid,
+                "BrokerID": self.brokerid
+            }
+            self.reqid += 1
+            self.reqUserLogout(ctp_req, self.reqid)
+            self.login_status = False
 
     def send_order(self, req: OrderRequest) -> str:
         """委托下单"""
@@ -841,7 +898,7 @@ class CtpTdApi(TdApi):
         order: OrderData = req.create_order_data(orderid, self.gateway_name)
         self.gateway.on_order(order)
 
-        return order.vt_orderid     # type: ignore
+        return order.vt_orderid  # type: ignore
 
     def cancel_order(self, req: CancelRequest) -> None:
         """委托撤单"""

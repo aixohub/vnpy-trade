@@ -337,7 +337,7 @@ class BaseMonitor(QtWidgets.QTableWidget):
             self.cells[key] = row_cells
 
     def update_old_row(self, data: Any) -> None:
-        self.table__ = """
+        """
         Update an old row in table.
         """
         key: str = data.__getattribute__(self.data_key)
@@ -490,7 +490,6 @@ class OrderMonitor(BaseMonitor):
         "volume": {"display": _("总数量"), "cell": BaseCell, "update": True},
         "traded": {"display": _("已成交"), "cell": BaseCell, "update": True},
         "status": {"display": _("状态"), "cell": EnumCell, "update": True},
-        "status_msg": {"display": _("状态详情"), "cell": BaseCell, "update": True},
         "datetime": {"display": _("时间"), "cell": TimeCell, "update": True},
         "gateway_name": {"display": _("接口"), "cell": BaseCell, "update": False},
     }
@@ -633,7 +632,6 @@ class ConnectDialog(QtWidgets.QDialog):
         # Add account selection dropdown
         self.account_combo = QtWidgets.QComboBox()
         self.account_combo.addItem(_("新建账号"))
-
 
         if self.all_accounts:
             for account_name in self.all_accounts.keys():
@@ -1204,13 +1202,17 @@ class ContractManager(QtWidgets.QWidget):
 
     headers: dict[str, str] = {
         "vt_symbol": _("本地代码"),
+        "name": _("名称"),
         "symbol": _("代码"),
         "exchange": _("交易所"),
-        "name": _("名称"),
         "product": _("合约分类"),
         "size": _("合约乘数"),
         "pricetick": _("价格跳动"),
         "min_volume": _("最小委托量"),
+        "open_date": _("期货开始日"),
+        "expire_date": _("期货到期日"),
+        "long_margin_ratio": _("多头保证金率"),
+        "short_margin_ratio": _("空头保证金率"),
         "option_portfolio": _("期权产品"),
         "option_expiry": _("期权到期日"),
         "option_strike": _("期权行权价"),
@@ -1293,7 +1295,6 @@ class ContractManager(QtWidgets.QWidget):
                 self.contract_table.setItem(row, column, cell)
 
         self.contract_table.resizeColumnsToContents()
-
 
 class AboutDialog(QtWidgets.QDialog):
     """
