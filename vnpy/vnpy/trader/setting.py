@@ -29,7 +29,7 @@ SETTINGS: dict = {
     "datafeed.password": "",
 
     "database.timezone": get_localzone_name(),
-    "database.name": "sqlite",
+    "database.name": "mysql",
     "database.database": "database.db",
     "database.host": "",
     "database.port": 0,

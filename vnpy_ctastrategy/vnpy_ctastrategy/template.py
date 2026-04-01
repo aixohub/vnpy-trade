@@ -307,6 +307,11 @@ class CtaTemplate(ABC):
         for bar in bars:
             callback(bar)
 
+        self.write_log(
+            f"load_bar finished: vt_symbol={self.vt_symbol}, days={days}, "
+            f"interval={interval.value}, bars={len(bars)}, use_database={use_database}"
+        )
+
     def load_tick(self, days: int) -> None:
         """
         Load historical tick data for initializing strategy.
